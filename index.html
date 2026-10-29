@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Nifty A/D Terminal</title>
+  <meta name="theme-color" content="#0b0e14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23111722'/><path d='M20 70 L45 35 L65 55 L85 25' stroke='%2300e676' stroke-width='10' fill='none' stroke-linecap='round'/><path d='M20 30 L45 65 L65 45 L85 75' stroke='%23ff3b56' stroke-width='10' fill='none' stroke-linecap='round'/></svg>">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      background: #0b0e14;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-wrapper {
+      display: flex;
+      flex-direction: column;
+      padding: 4px 6px;
+      gap: 4px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    header {
+      flex-shrink: 0;
+      height: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8px;
+      background: #111722;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+    }
+    .header-left { display: flex; align-items: center; gap: 6px; }
+    .brand { font-size: 0.8rem; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 5px; }
+    .status-badge { font-size: 0.62rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; }
+    .status-live { background: rgba(0, 230, 118, 0.12); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.3); }
+    .status-closed { background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    
+    .meta { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: #94a3b8; }
+    .timer-badge { font-family: monospace; font-size: 0.65rem; background: #0a0d14; border: 1px solid #1e293b; padding: 1px 4px; border-radius: 3px; color: #38bdf8; }
+    .btn { background: #1e293b; color: #f1f5f9; border: none; padding: 2px 7px; border-radius: 3px; font-size: 0.68rem; cursor: pointer; }
+    .btn:active { background: #334155; }
+
+    /* Mobile Controls */
+    .mobile-controls {
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .segmented-control {
+      display: flex;
+      background: #111722;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .seg-btn {
+      flex: 1;
+      padding: 4px 6px;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .seg-btn.active {
+      background: #38bdf8;
+      color: #000;
+      font-weight: 700;
+    }
+
+    .mobile-jump-bar {
+      display: flex;
+      gap: 4px;
+    }
+    .jump-chip {
+      background: #111722;
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+      font-size: 0.65rem;
+      padding: 3px 6px;
+      border-radius: 12px;
+      text-decoration: none;
+      text-align: center;
+      flex: 1;
+    }
+    .jump-chip:active { background: #38bdf8; color: #000; font-weight: 700; }
+
+    /* Cards */
+    .card {
+      background: #111722;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card-head {
+      flex-shrink: 0;
+      height: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+    .title { font-size: 0.75rem; font-weight: 700; color: #f8fafc; }
+    .stats { font-size: 0.65rem; font-family: monospace; display: flex; gap: 4px; }
+    .adv-pill { color: #00e676; background: rgba(0, 230, 118, 0.1); padding: 1px 4px; border-radius: 3px; }
+    .dec-pill { color: #ff3b56; background: rgba(255, 59, 86, 0.1); padding: 1px 4px; border-radius: 3px; }
+
+    .canvas-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Movers Section: Clean Compact Table */
+    .movers-box { display: flex; flex-direction: column; }
+    .movers-scroll { overflow-y: auto; flex: 1; min-height: 0; }
+    
+    table { width: 100%; border-collapse: collapse; font-size: 0.68rem; font-family: monospace; }
+    th { text-align: left; color: #64748b; font-size: 0.6rem; padding: 2px 3px; position: sticky; top: 0; background: #111722; z-index: 1; }
+    td { padding: 2px 3px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); white-space: nowrap; }
+    .stock-rank { color: #64748b; width: 14px; }
+    .stock-sym { font-weight: 700; color: #f1f5f9; }
+    .price { text-align: right; color: #cbd5e1; }
+    .pos { color: #00e676; font-weight: 700; text-align: right; }
+    .neg { color: #ff3b56; font-weight: 700; text-align: right; }
+
+    /* Hiding classes with maximum specificity */
+    .tab-hide,
+    body.mode-landscape .left-col.tab-hide,
+    body.mode-landscape .right-col.tab-hide,
+    body.mode-portrait .left-col.tab-hide,
+    body.mode-portrait .right-col.tab-hide,
+    body.mode-desktop .left-col.tab-hide,
+    body.mode-desktop .right-col.tab-hide {
+      display: none !important;
+    }
+
+    /* ==============================================================
+       MODE 1: PC / DESKTOP (Width >= 950px AND Height >= 520px)
+       Side-by-side 3-section layout, 100vh fit, zero scroll
+       ============================================================== */
+    body.mode-desktop {
+      overflow: hidden !important;
+      height: 100vh;
+      height: 100dvh;
+    }
+    body.mode-desktop .app-wrapper {
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+    body.mode-desktop .mobile-controls { display: none !important; }
+    body.mode-desktop .grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 4px;
+      height: calc(100vh - 42px);
+    }
+    body.mode-desktop .left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      height: 100%;
+    }
+    body.mode-desktop .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      height: 100%;
+      width: 280px;
+    }
+    body.mode-desktop .card { flex: 1; height: 100%; }
+
+    /* ==============================================================
+       MODE 2: MOBILE LANDSCAPE (Height < 520px, e.g. 826x298)
+       Charts side-by-side (zero overlap!), tabs to toggle movers
+       ============================================================== */
+    body.mode-landscape {
+      overflow: hidden !important;
+      height: 100vh;
+      height: 100dvh;
+    }
+    body.mode-landscape .app-wrapper {
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      padding: 2px 4px;
+      gap: 2px;
+    }
+    body.mode-landscape header { height: 26px; }
+    body.mode-landscape .mobile-controls { display: flex; }
+    body.mode-landscape .mobile-jump-bar { display: none !important; }
+    body.mode-landscape .grid {
+      display: flex;
+      width: 100%;
+      height: calc(100vh - 60px);
+    }
+    body.mode-landscape .left-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      width: 100%;
+      height: 100%;
+    }
+    body.mode-landscape .right-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      width: 100%;
+      height: 100%;
+    }
+    body.mode-landscape .card { height: 100%; min-height: 0; }
+
+    /* ==============================================================
+       MODE 3: MOBILE PORTRAIT (Phone upright, Width < 950px AND Height >= 520px)
+       ALL 3 SECTIONS FULLY VISIBLE! Natural vertical touch scroll!
+       ============================================================== */
+    body.mode-portrait {
+      overflow-y: auto !important;
+      height: auto !important;
+      min-height: 100vh;
+    }
+    body.mode-portrait .app-wrapper {
+      height: auto !important;
+      min-height: 100vh;
+      overflow-y: visible !important;
+      padding-bottom: 30px;
+    }
+    body.mode-portrait .mobile-controls { display: flex; }
+    body.mode-portrait .grid {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      gap: 8px;
+    }
+    body.mode-portrait .left-col,
+    body.mode-portrait .right-col {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: auto;
+      gap: 8px;
+    }
+    body.mode-portrait .chart-card {
+      min-height: 220px;
+      height: 220px;
+    }
+    body.mode-portrait .canvas-wrap {
+      min-height: 180px;
+      height: 180px;
+    }
+    body.mode-portrait .movers-box {
+      min-height: 270px;
+      height: auto;
+    }
+    body.mode-portrait .movers-scroll {
+      max-height: none;
+      overflow-y: visible;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-wrapper">
+    <header>
+      <div class="header-left">
+        <div class="brand">NIFTY ADV / DEC</div>
+        <span class="status-badge status-closed" id="marketBadge" onclick="promptServerHost()" style="cursor:pointer;" title="Tap to configure PC Feed IP">● Connecting...</span>
+      </div>
+      <div class="meta">
+        <span class="timer-badge" id="nextUpdate">30s</span>
+        <span id="clock">--:--:--</span>
+        <button class="btn" onclick="fetchData(true)">⚡ Refresh</button>
+      </div>
+    </header>
+
+    <!-- Mobile View Controls -->
+    <div class="mobile-controls">
+      <!-- Segmented Control -->
+      <div class="segmented-control" id="segControl">
+        <button class="seg-btn active" id="btnAll" onclick="setMobileView('all')">📜 All View</button>
+        <button class="seg-btn" id="btnCharts" onclick="setMobileView('charts')">📈 Charts</button>
+        <button class="seg-btn" id="btnMovers" onclick="setMobileView('movers')">⚡ Top Movers</button>
+      </div>
+
+      <!-- Quick Jump Bar for All View in Portrait -->
+      <div class="mobile-jump-bar" id="jumpBar">
+        <a href="#secN50" class="jump-chip">Nifty 50</a>
+        <a href="#secN100" class="jump-chip">Nifty 100</a>
+        <a href="#secGainers" class="jump-chip" style="color:#00e676">▲ Gainers</a>
+        <a href="#secLosers" class="jump-chip" style="color:#ff3b56">▼ Losers</a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- SECTIONS 1 & 2: CHARTS -->
+      <div class="left-col" id="colCharts">
+        <!-- Section 1: Nifty 50 -->
+        <div class="card chart-card" id="secN50">
+          <div class="card-head">
+            <span class="title">Nifty 50: Adv / Dec</span>
+            <div class="stats">
+              <span class="adv-pill">Adv: <b id="n50A">26</b></span>
+              <span class="dec-pill">Dec: <b id="n50D">24</b></span> <span id="n50U_wrap" style="color:#94a3b8; font-size:0.65rem; background:rgba(148,163,184,0.1); padding:1px 4px; border-radius:3px; display:none;">Unch: <b id="n50U">0</b></span>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="c50"></canvas>
+          </div>
+        </div>
+
+        <!-- Section 2: Nifty 100 -->
+        <div class="card chart-card" id="secN100">
+          <div class="card-head">
+            <span class="title">Nifty 100: Adv / Dec</span>
+            <div class="stats">
+              <span class="adv-pill">Adv: <b id="n100A">47</b></span>
+              <span class="dec-pill">Dec: <b id="n100D">53</b></span> <span id="n100U_wrap" style="color:#94a3b8; font-size:0.65rem; background:rgba(148,163,184,0.1); padding:1px 4px; border-radius:3px; display:none;">Unch: <b id="n100U">0</b></span>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="c100"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: TOP 10 GAINERS & LOSERS -->
+      <div class="right-col" id="colMovers">
+        <!-- Top 10 Gainers -->
+        <div class="card movers-box" id="secGainers">
+          <div class="card-head">
+            <span class="title" style="color:#00e676">▲ Top 10 Gainer</span>
+            <span style="font-size:0.62rem; color:#64748b">Nifty 100</span>
+          </div>
+          <div class="movers-scroll">
+            <table>
+              <thead><tr><th style="width:14px">#</th><th>Stock</th><th style="text-align:right">Price</th><th style="text-align:right">% Chg</th></tr></thead>
+              <tbody id="gainersList">
+<tr><td class="stock-rank">1</td><td class="stock-sym">ADANIPORTS</td><td class="price">₹1,869.9</td><td class="pos">+6.17%</td></tr>
+<tr><td class="stock-rank">2</td><td class="stock-sym">JSWENERGY</td><td class="price">₹512.0</td><td class="pos">+6.00%</td></tr>
+<tr><td class="stock-rank">3</td><td class="stock-sym">ADANIENT</td><td class="price">₹2,621.0</td><td class="pos">+5.69%</td></tr>
+<tr><td class="stock-rank">4</td><td class="stock-sym">ADANIENSOL</td><td class="price">₹1,365.0</td><td class="pos">+5.49%</td></tr>
+<tr><td class="stock-rank">5</td><td class="stock-sym">CHOLAFIN</td><td class="price">₹1,613.0</td><td class="pos">+4.39%</td></tr>
+<tr><td class="stock-rank">6</td><td class="stock-sym">DLF</td><td class="price">₹695.4</td><td class="pos">+4.37%</td></tr>
+<tr><td class="stock-rank">7</td><td class="stock-sym">POWERGRID</td><td class="price">₹262.0</td><td class="pos">+4.22%</td></tr>
+<tr><td class="stock-rank">8</td><td class="stock-sym">BANKBARODA</td><td class="price">₹241.6</td><td class="pos">+4.20%</td></tr>
+<tr><td class="stock-rank">9</td><td class="stock-sym">KOTAKBANK</td><td class="price">₹458.0</td><td class="pos">+4.09%</td></tr>
+<tr><td class="stock-rank">10</td><td class="stock-sym">ADANIPOWER</td><td class="price">₹191.8</td><td class="pos">+3.91%</td></tr>
+</tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top 10 Losers -->
+        <div class="card movers-box" id="secLosers">
+          <div class="card-head">
+            <span class="title" style="color:#ff3b56">▼ Top 10 Loser</span>
+            <span style="font-size:0.62rem; color:#64748b">Nifty 100</span>
+          </div>
+          <div class="movers-scroll">
+            <table>
+              <thead><tr><th style="width:14px">#</th><th>Stock</th><th style="text-align:right">Price</th><th style="text-align:right">% Chg</th></tr></thead>
+              <tbody id="losersList">
+<tr><td class="stock-rank">1</td><td class="stock-sym">CUMMINSIND</td><td class="price">₹4,521.0</td><td class="neg">-2.14%</td></tr>
+<tr><td class="stock-rank">2</td><td class="stock-sym">NAUKRI</td><td class="price">₹1,170.0</td><td class="neg">-1.68%</td></tr>
+<tr><td class="stock-rank">3</td><td class="stock-sym">TRENT</td><td class="price">₹2,865.0</td><td class="neg">-1.68%</td></tr>
+<tr><td class="stock-rank">4</td><td class="stock-sym">BAJAJHLDNG</td><td class="price">₹10,290.0</td><td class="neg">-1.63%</td></tr>
+<tr><td class="stock-rank">5</td><td class="stock-sym">MARUTI</td><td class="price">₹11,426.0</td><td class="neg">-1.32%</td></tr>
+<tr><td class="stock-rank">6</td><td class="stock-sym">ICICIGI</td><td class="price">₹1,565.0</td><td class="neg">-1.19%</td></tr>
+<tr><td class="stock-rank">7</td><td class="stock-sym">SBILIFE</td><td class="price">₹1,649.0</td><td class="neg">-1.06%</td></tr>
+<tr><td class="stock-rank">8</td><td class="stock-sym">EICHERMOT</td><td class="price">₹7,238.0</td><td class="neg">-0.85%</td></tr>
+<tr><td class="stock-rank">9</td><td class="stock-sym">BOSCHLTD</td><td class="price">₹47,270.0</td><td class="neg">-0.75%</td></tr>
+<tr><td class="stock-rank">10</td><td class="stock-sym">HAVELLS</td><td class="price">₹1,017.8</td><td class="neg">-0.74%</td></tr>
+</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const EMBEDDED_HISTORY = {"n50": {"adv": 39, "dec": 11, "unch": 0}, "n100": {"adv": 80, "dec": 20, "unch": 0}, "gainers": [{"s": "ADANIPORTS", "p": "1,869.9", "c": "6.17", "rawChg": 6.165898630286993}, {"s": "JSWENERGY", "p": "512.0", "c": "6.00", "rawChg": 6.004140786749482}, {"s": "ADANIENT", "p": "2,621.0", "c": "5.69", "rawChg": 5.694005500104802}, {"s": "ADANIENSOL", "p": "1,365.0", "c": "5.49", "rawChg": 5.486862442040186}, {"s": "CHOLAFIN", "p": "1,613.0", "c": "4.39", "rawChg": 4.387784815596561}, {"s": "DLF", "p": "695.4", "c": "4.37", "rawChg": 4.367407647339721}, {"s": "POWERGRID", "p": "262.0", "c": "4.22", "rawChg": 4.216390756111254}, {"s": "BANKBARODA", "p": "241.6", "c": "4.20", "rawChg": 4.197220006956038}, {"s": "KOTAKBANK", "p": "458.0", "c": "4.09", "rawChg": 4.090909090909091}, {"s": "ADANIPOWER", "p": "191.8", "c": "3.91", "rawChg": 3.905957449974333}], "losers": [{"s": "CUMMINSIND", "p": "4,521.0", "c": "-2.14", "rawChg": -2.142857142857143}, {"s": "NAUKRI", "p": "1,170.0", "c": "-1.68", "rawChg": -1.680672268907563}, {"s": "TRENT", "p": "2,865.0", "c": "-1.68", "rawChg": -1.6781599911657268}, {"s": "BAJAJHLDNG", "p": "10,290.0", "c": "-1.63", "rawChg": -1.6346429595640952}, {"s": "MARUTI", "p": "11,426.0", "c": "-1.32", "rawChg": -1.32135763019259}, {"s": "ICICIGI", "p": "1,565.0", "c": "-1.19", "rawChg": -1.187021609327226}, {"s": "SBILIFE", "p": "1,649.0", "c": "-1.06", "rawChg": -1.0619758619078359}, {"s": "EICHERMOT", "p": "7,238.0", "c": "-0.85", "rawChg": -0.8493150684931507}, {"s": "BOSCHLTD", "p": "47,270.0", "c": "-0.75", "rawChg": -0.7454068241469817}, {"s": "HAVELLS", "p": "1,017.8", "c": "-0.74", "rawChg": -0.741177729680335}], "h50": [{"t": "09:15", "adv": 27, "dec": 23}, {"t": "09:20", "adv": 25, "dec": 25}, {"t": "09:25", "adv": 27, "dec": 23}, {"t": "09:30", "adv": 28, "dec": 22}, {"t": "09:35", "adv": 28, "dec": 22}, {"t": "09:40", "adv": 25, "dec": 25}, {"t": "09:45", "adv": 24, "dec": 25}, {"t": "09:50", "adv": 31, "dec": 19}, {"t": "09:55", "adv": 28, "dec": 22}, {"t": "10:00", "adv": 30, "dec": 20}, {"t": "10:05", "adv": 33, "dec": 17}, {"t": "10:10", "adv": 32, "dec": 18}, {"t": "10:15", "adv": 34, "dec": 16}, {"t": "10:20", "adv": 37, "dec": 13}, {"t": "10:25", "adv": 40, "dec": 9}, {"t": "10:30", "adv": 40, "dec": 10}, {"t": "10:35", "adv": 38, "dec": 11}, {"t": "10:40", "adv": 36, "dec": 14}, {"t": "10:45", "adv": 37, "dec": 12}, {"t": "10:50", "adv": 38, "dec": 12}, {"t": "10:55", "adv": 37, "dec": 13}, {"t": "11:00", "adv": 37, "dec": 13}, {"t": "11:05", "adv": 36, "dec": 14}, {"t": "11:10", "adv": 37, "dec": 13}, {"t": "11:15", "adv": 37, "dec": 13}, {"t": "11:20", "adv": 35, "dec": 14}, {"t": "11:25", "adv": 36, "dec": 13}, {"t": "11:30", "adv": 36, "dec": 11}, {"t": "11:35", "adv": 36, "dec": 14}, {"t": "11:40", "adv": 37, "dec": 13}, {"t": "11:45", "adv": 38, "dec": 12}, {"t": "11:50", "adv": 33, "dec": 15}, {"t": "11:55", "adv": 35, "dec": 14}, {"t": "12:00", "adv": 36, "dec": 14}, {"t": "12:05", "adv": 35, "dec": 15}, {"t": "12:10", "adv": 33, "dec": 17}, {"t": "12:15", "adv": 34, "dec": 16}, {"t": "12:20", "adv": 36, "dec": 14}, {"t": "12:25", "adv": 35, "dec": 14}, {"t": "12:30", "adv": 34, "dec": 16}, {"t": "12:35", "adv": 35, "dec": 15}, {"t": "12:40", "adv": 33, "dec": 17}, {"t": "12:45", "adv": 34, "dec": 16}, {"t": "12:50", "adv": 33, "dec": 17}, {"t": "12:55", "adv": 35, "dec": 15}, {"t": "13:00", "adv": 33, "dec": 17}, {"t": "13:05", "adv": 35, "dec": 15}, {"t": "13:10", "adv": 33, "dec": 17}, {"t": "13:15", "adv": 32, "dec": 18}, {"t": "13:20", "adv": 33, "dec": 17}, {"t": "13:25", "adv": 33, "dec": 17}, {"t": "13:30", "adv": 32, "dec": 17}, {"t": "13:35", "adv": 34, "dec": 15}, {"t": "13:40", "adv": 34, "dec": 15}, {"t": "13:45", "adv": 35, "dec": 14}, {"t": "13:50", "adv": 36, "dec": 14}, {"t": "13:55", "adv": 36, "dec": 14}, {"t": "14:00", "adv": 37, "dec": 13}, {"t": "14:05", "adv": 37, "dec": 13}, {"t": "14:10", "adv": 37, "dec": 13}, {"t": "14:15", "adv": 37, "dec": 13}, {"t": "14:20", "adv": 37, "dec": 13}, {"t": "14:25", "adv": 38, "dec": 12}, {"t": "14:30", "adv": 40, "dec": 10}, {"t": "14:35", "adv": 40, "dec": 10}, {"t": "14:40", "adv": 39, "dec": 11}, {"t": "14:45", "adv": 39, "dec": 11}, {"t": "14:50", "adv": 39, "dec": 11}, {"t": "14:55", "adv": 40, "dec": 10}, {"t": "15:00", "adv": 38, "dec": 12}, {"t": "15:05", "adv": 40, "dec": 10}, {"t": "15:10", "adv": 39, "dec": 11}, {"t": "15:15", "adv": 39, "dec": 11}, {"t": "15:20", "adv": 39, "dec": 11}, {"t": "15:25", "adv": 39, "dec": 11}], "h100": [{"t": "09:15", "adv": 53, "dec": 47}, {"t": "09:20", "adv": 53, "dec": 46}, {"t": "09:25", "adv": 58, "dec": 41}, {"t": "09:30", "adv": 60, "dec": 39}, {"t": "09:35", "adv": 60, "dec": 40}, {"t": "09:40", "adv": 57, "dec": 43}, {"t": "09:45", "adv": 56, "dec": 43}, {"t": "09:50", "adv": 62, "dec": 38}, {"t": "09:55", "adv": 58, "dec": 42}, {"t": "10:00", "adv": 64, "dec": 36}, {"t": "10:05", "adv": 68, "dec": 31}, {"t": "10:10", "adv": 67, "dec": 33}, {"t": "10:15", "adv": 69, "dec": 31}, {"t": "10:20", "adv": 72, "dec": 28}, {"t": "10:25", "adv": 77, "dec": 22}, {"t": "10:30", "adv": 77, "dec": 23}, {"t": "10:35", "adv": 74, "dec": 25}, {"t": "10:40", "adv": 72, "dec": 28}, {"t": "10:45", "adv": 74, "dec": 25}, {"t": "10:50", "adv": 75, "dec": 25}, {"t": "10:55", "adv": 72, "dec": 28}, {"t": "11:00", "adv": 72, "dec": 28}, {"t": "11:05", "adv": 71, "dec": 29}, {"t": "11:10", "adv": 75, "dec": 25}, {"t": "11:15", "adv": 72, "dec": 27}, {"t": "11:20", "adv": 70, "dec": 29}, {"t": "11:25", "adv": 68, "dec": 31}, {"t": "11:30", "adv": 70, "dec": 27}, {"t": "11:35", "adv": 67, "dec": 33}, {"t": "11:40", "adv": 70, "dec": 30}, {"t": "11:45", "adv": 71, "dec": 29}, {"t": "11:50", "adv": 66, "dec": 32}, {"t": "11:55", "adv": 68, "dec": 31}, {"t": "12:00", "adv": 69, "dec": 31}, {"t": "12:05", "adv": 71, "dec": 29}, {"t": "12:10", "adv": 69, "dec": 31}, {"t": "12:15", "adv": 68, "dec": 32}, {"t": "12:20", "adv": 71, "dec": 29}, {"t": "12:25", "adv": 71, "dec": 28}, {"t": "12:30", "adv": 69, "dec": 31}, {"t": "12:35", "adv": 72, "dec": 28}, {"t": "12:40", "adv": 69, "dec": 31}, {"t": "12:45", "adv": 69, "dec": 31}, {"t": "12:50", "adv": 68, "dec": 32}, {"t": "12:55", "adv": 71, "dec": 29}, {"t": "13:00", "adv": 69, "dec": 31}, {"t": "13:05", "adv": 72, "dec": 28}, {"t": "13:10", "adv": 67, "dec": 33}, {"t": "13:15", "adv": 67, "dec": 33}, {"t": "13:20", "adv": 69, "dec": 31}, {"t": "13:25", "adv": 68, "dec": 32}, {"t": "13:30", "adv": 69, "dec": 29}, {"t": "13:35", "adv": 71, "dec": 28}, {"t": "13:40", "adv": 71, "dec": 28}, {"t": "13:45", "adv": 72, "dec": 27}, {"t": "13:50", "adv": 74, "dec": 26}, {"t": "13:55", "adv": 74, "dec": 26}, {"t": "14:00", "adv": 75, "dec": 25}, {"t": "14:05", "adv": 74, "dec": 26}, {"t": "14:10", "adv": 75, "dec": 25}, {"t": "14:15", "adv": 74, "dec": 26}, {"t": "14:20", "adv": 75, "dec": 25}, {"t": "14:25", "adv": 76, "dec": 24}, {"t": "14:30", "adv": 78, "dec": 22}, {"t": "14:35", "adv": 78, "dec": 22}, {"t": "14:40", "adv": 78, "dec": 22}, {"t": "14:45", "adv": 77, "dec": 23}, {"t": "14:50", "adv": 77, "dec": 23}, {"t": "14:55", "adv": 78, "dec": 22}, {"t": "15:00", "adv": 77, "dec": 23}, {"t": "15:05", "adv": 80, "dec": 20}, {"t": "15:10", "adv": 81, "dec": 19}, {"t": "15:15", "adv": 80, "dec": 20}, {"t": "15:20", "adv": 80, "dec": 20}, {"t": "15:25", "adv": 80, "dec": 20}], "date": "2026-10-29", "timestamp": "15:48:51"};
+
+    const N50_SET = new Set(["ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ_AUTO", "BAJFINANCE", "BAJAJFINSV", "BEL", "BHARTIARTL", "BSE", "CIPLA", "COALINDIA", "DRREDDY", "EICHERMOT", "ETERNAL", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HINDALCO", "HINDUNILVR", "ICICIBANK", "INDIGO", "INFY", "ITC", "JIOFIN", "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI", "MAXHEALTH", "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", "TATASTEEL", "TCS", "TECHM", "TITAN", "TMPV", "TRENT", "ULTRACEMCO"]);
+
+    const NEXT50 = ["ABB", "ADANIENSOL", "ADANIGREEN", "ADANIPOWER", "AMBUJACEM", "DMART", "BAJAJHLDNG", "BANKBARODA", "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "CUMMINSIND", "DLF", "GAIL", "GODREJCP", "HDFCAMC", "HAL", "HAVELLS", "HINDZINC", "ICICIGI", "LICI", "IOC", "IRFC", "JINDALSTEL", "JSWENERGY", "LODHA", "MOTHERSON", "NAUKRI", "NHPC", "PFC", "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SIEMENS", "SOLARINDS", "SRF", "TVSMOTOR", "TATAPOWER", "TORNTPHARM", "TORNTPOWER", "UNIONBANK", "VBL", "VEDL", "IDEA", "ZYDUSLIFE", "CGPOWER", "DIVISLAB"];
+
+    
+
+    const MARKET_OPEN_MIN = 9 * 60 + 15;   // 555
+    const MARKET_CLOSE_MIN = 15 * 60 + 30; // 930
+    const TOTAL_SESSION_MIN = MARKET_CLOSE_MIN - MARKET_OPEN_MIN; // 375
+
+    const TIME_TICKS = [
+      { m: 9 * 60 + 15, label: '09:15' },
+      { m: 10 * 60 + 30, label: '10:30' },
+      { m: 11 * 60 + 45, label: '11:45' },
+      { m: 13 * 60 + 0, label: '13:00' },
+      { m: 14 * 60 + 15, label: '14:15' },
+      { m: 15 * 60 + 30, label: '15:30' }
+    ];
+
+    const todayDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+    const storageKey = 'nifty_ad_data_' + todayDateStr;
+
+    let h50 = [];
+    let h100 = [];
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey));
+      if (saved && saved.h50 && saved.h50.length > 0) {
+        h50 = saved.h50;
+        h100 = saved.h100;
+      }
+    } catch(e) {}
+
+    if (h50.length === 0 && EMBEDDED_HISTORY && EMBEDDED_HISTORY.date === todayDateStr) {
+      h50 = [...(EMBEDDED_HISTORY.h50 || [])];
+      h100 = [...(EMBEDDED_HISTORY.h100 || [])];
+    }
+
+    const c50 = document.getElementById('c50');
+    const c100 = document.getElementById('c100');
+    let countdown = 30;
+    let currentMobileView = 'all'; // 'all', 'charts', 'movers'
+
+    if (h50.length > 0) {
+      document.getElementById('n50A').textContent = h50[h50.length - 1].adv;
+      document.getElementById('n50D').textContent = h50[h50.length - 1].dec;
+      document.getElementById('n100A').textContent = h100[h100.length - 1].adv;
+      document.getElementById('n100D').textContent = h100[h100.length - 1].dec;
+    }
+
+    // Dynamic resolution layout
+    function applyDynamicLayout() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const b = document.body;
+
+      b.classList.remove('mode-desktop', 'mode-landscape', 'mode-portrait');
+
+      if (h < 520) {
+        // Mobile Landscape Mode: side-by-side
+        b.classList.add('mode-landscape');
+        document.getElementById('btnAll').style.display = 'none';
+        document.getElementById('jumpBar').style.display = 'none';
+        if (currentMobileView === 'all') currentMobileView = 'charts';
+        
+        document.getElementById('colCharts').classList.toggle('tab-hide', currentMobileView !== 'charts');
+        document.getElementById('colMovers').classList.toggle('tab-hide', currentMobileView !== 'movers');
+        
+        document.getElementById('btnCharts').textContent = '📈 Charts (N50 & N100)';
+        document.getElementById('btnMovers').textContent = '⚡ Gainers & Losers';
+      } else if (w >= 950) {
+        // Desktop PC mode
+        b.classList.add('mode-desktop');
+        document.getElementById('colCharts').classList.remove('tab-hide');
+        document.getElementById('colMovers').classList.remove('tab-hide');
+      } else {
+        // Mobile Portrait Mode
+        b.classList.add('mode-portrait');
+        document.getElementById('btnAll').style.display = 'block';
+        document.getElementById('btnCharts').textContent = '📈 Charts';
+        document.getElementById('btnMovers').textContent = '⚡ Top Movers';
+
+        if (currentMobileView === 'all') {
+          document.getElementById('colCharts').classList.remove('tab-hide');
+          document.getElementById('colMovers').classList.remove('tab-hide');
+          document.getElementById('jumpBar').style.display = 'flex';
+        } else if (currentMobileView === 'charts') {
+          document.getElementById('colCharts').classList.remove('tab-hide');
+          document.getElementById('colMovers').classList.add('tab-hide');
+          document.getElementById('jumpBar').style.display = 'none';
+        } else if (currentMobileView === 'movers') {
+          document.getElementById('colCharts').classList.add('tab-hide');
+          document.getElementById('colMovers').classList.remove('tab-hide');
+          document.getElementById('jumpBar').style.display = 'none';
+        }
+      }
+
+      // Update active segmented button
+      document.getElementById('btnAll')?.classList.toggle('active', currentMobileView === 'all');
+      document.getElementById('btnCharts')?.classList.toggle('active', currentMobileView === 'charts');
+      document.getElementById('btnMovers')?.classList.toggle('active', currentMobileView === 'movers');
+    }
+
+    function setMobileView(view) {
+      currentMobileView = view;
+      applyDynamicLayout();
+      setTimeout(drawAllCharts, 40);
+    }
+
+    function parseToMinutes(tStr) {
+      if (!tStr) return MARKET_OPEN_MIN;
+      const parts = tStr.split(':');
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+
+    function resizeCanvas(c) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = c.parentElement ? c.parentElement.getBoundingClientRect() : { width: 300, height: 160 };
+      const w = Math.max(100, Math.floor(rect.width));
+      const h = Math.max(80, Math.floor(rect.height));
+
+      if (c.width !== w * dpr || c.height !== h * dpr) {
+        c.width = w * dpr;
+        c.height = h * dpr;
+      }
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w, h };
+    }
+
+    function drawChart(canvas, data, maxVal) {
+      if (!canvas) return;
+      const { ctx, w, h } = resizeCanvas(canvas);
+      if (w <= 0 || h <= 0) return;
+      ctx.clearRect(0, 0, w, h);
+
+      const padLeft = 24, padRight = 10, padTop = 6, padBottom = 15;
+      const chartW = w - padLeft - padRight;
+      const chartH = h - padTop - padBottom;
+
+      if (chartW <= 0 || chartH <= 0) return;
+
+      // 1. Horizontal Y Grid Lines
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.fillStyle = "#64748b";
+      ctx.font = "8px monospace";
+      ctx.lineWidth = 1;
+
+      const ySteps = 4;
+      for (let i = 0; i <= ySteps; i++) {
+        const y = padTop + (chartH / ySteps) * i;
+        const val = Math.round(maxVal - (maxVal / ySteps) * i);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(w - padRight, y);
+        ctx.stroke();
+        ctx.fillText(val, 2, y + 3);
+      }
+
+      // 2. Vertical X Grid Lines & 09:15 - 15:30 Labels
+      TIME_TICKS.forEach((tick, idx) => {
+        const tickX = padLeft + ((tick.m - MARKET_OPEN_MIN) / TOTAL_SESSION_MIN) * chartW;
+        ctx.beginPath();
+        ctx.moveTo(tickX, padTop);
+        ctx.lineTo(tickX, padTop + chartH);
+        ctx.stroke();
+
+        ctx.fillStyle = "#64748b";
+        let textX = tickX - 11;
+        if (idx === 0) textX = padLeft;
+        if (idx === TIME_TICKS.length - 1) textX = w - padRight - 24;
+        ctx.fillText(tick.label, textX, h - 2);
+      });
+
+      if (!data || data.length === 0) return;
+
+      const getX = (tStr) => {
+        const m = Math.max(MARKET_OPEN_MIN, Math.min(MARKET_CLOSE_MIN, parseToMinutes(tStr)));
+        return padLeft + ((m - MARKET_OPEN_MIN) / TOTAL_SESSION_MIN) * chartW;
+      };
+
+      const getY = (val) => padTop + chartH - (val / maxVal) * chartH;
+
+      function drawSeries(key, strokeCol, rgb) {
+        if (data.length === 0) return;
+        ctx.beginPath();
+        for (let i = 0; i < data.length; i++) {
+          const x = getX(data[i].t), y = getY(data[i][key]);
+          if (i === 0) ctx.moveTo(x, y);
+          else {
+            const prevX = getX(data[i - 1].t), prevY = getY(data[i - 1][key]);
+            const cpX = (prevX + x) / 2;
+            ctx.bezierCurveTo(cpX, prevY, cpX, y, x, y);
+          }
+        }
+        ctx.strokeStyle = strokeCol;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.lineTo(getX(data[data.length - 1].t), padTop + chartH);
+        ctx.lineTo(getX(data[0].t), padTop + chartH);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
+        grad.addColorStop(0, `rgba(${rgb}, 0.22)`);
+        grad.addColorStop(1, `rgba(${rgb}, 0.0)`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      drawSeries('adv', '#00e676', '0,230,118');
+      drawSeries('dec', '#ff3b56', '255,59,86');
+    }
+
+    function drawAllCharts() {
+      applyDynamicLayout();
+      drawChart(c50, h50, 50);
+      drawChart(c100, h100, 100);
+    }
+
+    function promptServerHost() {
+      const cur = localStorage.getItem('server_host') || 'http://192.168.0.130:7799';
+      const input = prompt("Enter PC Feed IP & Port (e.g. http://192.168.0.130:7799):\n(Ensure mobile is connected to the same Wi-Fi as your PC)", cur);
+      if (input) {
+        let val = input.trim();
+        if (!val.startsWith('http://') && !val.startsWith('https://')) val = 'http://' + val;
+        localStorage.setItem('server_host', val);
+        fetchData(true);
+      }
+    }
+
+    // Data source: Pure yfinance real-time engine with multi-endpoint resolution
+    async function fetchData(isManual = false) {
+      let d = null;
+      let activeHost = '';
+
+      const saved = localStorage.getItem('server_host');
+      const originHost = (window.location.protocol.startsWith('http')) ? window.location.origin : null;
+      const candidates = [
+        saved,
+        originHost,
+        'http://192.168.0.130:7799',
+        'http://localhost:7799'
+      ].filter(Boolean);
+
+      for (const base of candidates) {
+        try {
+          const url = base.replace(/\/+$/, '') + '/api/data';
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 3500);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(tid);
+          if (res.ok) {
+            d = await res.json();
+            activeHost = base;
+            localStorage.setItem('server_host', base);
+            break;
+          }
+        } catch (e) {}
+      }
+
+      try {
+        if (d && d.n50 && (d.n50.adv + d.n50.dec + (d.n50.unch || 0)) >= 45) {
+          document.getElementById('n50A').textContent = d.n50.adv;
+          document.getElementById('n50D').textContent = d.n50.dec;
+          document.getElementById('n100A').textContent = d.n100.adv;
+          document.getElementById('n100D').textContent = d.n100.dec;
+
+          const u50El = document.getElementById('n50U');
+          const u50Wrap = document.getElementById('n50U_wrap');
+          if (u50El && u50Wrap) {
+            u50El.textContent = d.n50.unch || 0;
+            u50Wrap.style.display = (d.n50.unch > 0) ? 'inline-block' : 'none';
+          }
+          const u100El = document.getElementById('n100U');
+          const u100Wrap = document.getElementById('n100U_wrap');
+          if (u100El && u100Wrap) {
+            u100El.textContent = d.n100.unch || 0;
+            u100Wrap.style.display = (d.n100.unch > 0) ? 'inline-block' : 'none';
+          }
+
+          if (d.h50 && d.h50.length > 0) {
+            h50 = d.h50.filter(p => (p.adv + p.dec) >= 30);
+            h100 = d.h100.filter(p => (p.adv + p.dec) >= 60);
+            try { localStorage.setItem(storageKey, JSON.stringify({ h50, h100 })); } catch(e) {}
+          }
+
+          if (d.gainers && d.gainers.length > 0) {
+            document.getElementById('gainersList').innerHTML = d.gainers.map((s, idx) => `
+              <tr>
+                <td class="stock-rank">${idx + 1}</td>
+                <td class="stock-sym">${s.s}</td>
+                <td class="price">₹${s.p}</td>
+                <td class="pos">+${s.c}%</td>
+              </tr>
+            `).join('');
+
+            document.getElementById('losersList').innerHTML = d.losers.map((s, idx) => `
+              <tr>
+                <td class="stock-rank">${idx + 1}</td>
+                <td class="stock-sym">${s.s}</td>
+                <td class="price">₹${s.p}</td>
+                <td class="neg">${s.c}%</td>
+              </tr>
+            `).join('');
+          }
+        }
+
+        const now = new Date();
+        const curMin = now.getHours() * 60 + now.getMinutes();
+        const isMarketLive = curMin >= MARKET_OPEN_MIN && curMin <= MARKET_CLOSE_MIN;
+        const badge = document.getElementById('marketBadge');
+        if (badge) {
+          if (d) {
+            if (isMarketLive) {
+              badge.className = 'status-badge status-live';
+              badge.innerHTML = '● Live (30s Stream)';
+            } else {
+              badge.className = 'status-badge status-closed';
+              badge.innerHTML = '● Session Closed';
+            }
+          } else {
+            badge.className = 'status-badge status-closed';
+            badge.innerHTML = '⚠️ Feed Offline (Tap to set IP)';
+          }
+        }
+        drawAllCharts();
+        if (isManual) countdown = 30;
+      } catch (e) {
+        console.error('Data error:', e);
+        drawAllCharts();
+      }
+    }
+
+    setInterval(() => {
+      document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+      if (countdown > 1) {
+        countdown--;
+        document.getElementById('nextUpdate').textContent = `${countdown}s`;
+      } else {
+        countdown = 30;
+        document.getElementById('nextUpdate').textContent = '...';
+        fetchData();
+      }
+    }, 1000);
+
+    window.addEventListener('resize', () => {
+      setTimeout(drawAllCharts, 50);
+    });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(drawAllCharts, 100);
+    });
+
+    window.addEventListener('load', () => {
+      drawAllCharts();
+      fetchData();
+    });
+    setTimeout(drawAllCharts, 30);
+  </script>
+</body>
+</html>
+Pressing key...Stopping...
+
+Stop Agent
