@@ -60,7 +60,7 @@ if os.path.exists(history_file):
       except Exception:
                 pass
 
-  def update_yfinance_cache():
+def update_yfinance_cache():
         global LATEST_PAYLOAD
         today_str = datetime.date.today().strftime('%Y-%m-%d')
         while True:
